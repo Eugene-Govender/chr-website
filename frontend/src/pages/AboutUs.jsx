@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { motion } from 'framer-motion'
 import axios from 'axios'
 import IndustryCard from '../components/IndustryCard'
@@ -38,6 +39,13 @@ export default function AboutUs() {
 
   return (
     <div>
+      <Helmet>
+        <title>About Us — CHR Consulting</title>
+        <meta
+          name="description"
+          content="CHR Consulting is a specialist recruitment agency founded in 2023, dedicated to placing exceptional candidates with leading organisations across South Africa."
+        />
+      </Helmet>
       <section className="bg-primary text-white pt-32 pb-20 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <motion.h1

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import { Helmet } from 'react-helmet-async'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { motion } from 'framer-motion'
 import axios from 'axios'
@@ -47,6 +48,61 @@ export default function Jobs() {
     }
   }, [industryId, activeIndustry])
 
+  useEffect(() => {
+    if (jobs.length > 0) {
+      const structuredData = {
+        '@context': 'https://schema.org',
+        '@type': 'ItemList',
+        itemListElement: jobs.map((job, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          item: {
+            '@type': 'JobPosting',
+            title: job.title,
+            datePosted: new Date().toISOString().split('T')[0],
+            validThrough: job.closing_date || '2026-12-31',
+            employmentType: 'FULL_TIME',
+            hiringOrganization: {
+              '@type': 'Organization',
+              name: 'CHR Consulting',
+              sameAs: 'https://www.chrconsulting.co.za',
+              logo: 'https://www.chrconsulting.co.za/logo-dark.png',
+            },
+            jobLocation: {
+              '@type': 'Place',
+              address: {
+                '@type': 'PostalAddress',
+                addressCountry: 'ZA',
+                addressRegion: 'South Africa',
+              },
+            },
+            description: `${job.title} position at CHR Consulting`,
+            baseSalary: job.salary_range
+              ? {
+                  '@type': 'MonetaryAmount',
+                  currency: 'ZAR',
+                  value: job.salary_range,
+                }
+              : undefined,
+            applyLink: `https://www.chrconsulting.co.za/apply/${job.id}`,
+          },
+        })),
+      }
+
+      const script = document.createElement('script')
+      script.type = 'application/ld+json'
+      script.text = JSON.stringify(structuredData)
+      script.id = 'job-structured-data'
+      const existing = document.getElementById('job-structured-data')
+      if (existing) existing.remove()
+      document.head.appendChild(script)
+    }
+
+    return () => {
+      document.getElementById('job-structured-data')?.remove()
+    }
+  }, [jobs])
+
   const filtered = useMemo(() => {
     if (activeIndustry) {
       return filterJobsByIndustry(jobs, activeIndustry.id)
@@ -61,6 +117,13 @@ export default function Jobs() {
 
   return (
     <div className="pt-28 pb-16 px-4 min-h-screen bg-background">
+      <Helmet>
+        <title>Open Positions — CHR Consulting</title>
+        <meta
+          name="description"
+          content="Browse current job opportunities at CHR Consulting. Specialist roles in HR, Finance, Payroll, Compliance, Operations and Executive Management across South Africa."
+        />
+      </Helmet>
       <div className="max-w-7xl mx-auto">
         <motion.h1 {...fadeInUp} className="text-3xl font-bold text-primary mb-2">
           Open Positions

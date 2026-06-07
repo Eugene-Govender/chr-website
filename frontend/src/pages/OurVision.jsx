@@ -1,4 +1,5 @@
 import { motion } from 'framer-motion'
+import { Helmet } from 'react-helmet-async'
 import { AnimatedButton, AnimatedLink } from '../components/AnimatedButton'
 
 const IMPACT_CARDS = [
@@ -29,6 +30,13 @@ const VISION_PILLARS = [
 export default function OurVision() {
   return (
     <div>
+      <Helmet>
+        <title>Our Vision — CHR Consulting</title>
+        <meta
+          name="description"
+          content="Our vision is to bridge the gap between exceptional talent and great opportunities across South Africa, empowering graduates and building exceptional teams."
+        />
+      </Helmet>
       <section className="bg-primary text-white pt-32 pb-20 px-4">
         <div className="max-w-4xl mx-auto text-center">
           <motion.h1

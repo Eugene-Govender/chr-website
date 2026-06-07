@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Disallow: /apply/
+Sitemap: https://www.chrconsulting.co.za/sitemap.xml
