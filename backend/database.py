@@ -1,103 +1,78 @@
-"""SQLite read/write access to the shared recruitment database."""
+"""PostgreSQL read/write access for CHR website tables."""
 
 import json
-import sqlite3
 from typing import Any
 
-from config import DATABASE_PATH
+from sqlalchemy import text
+
+from db import engine
 
 
-def get_conn() -> sqlite3.Connection:
-    conn = sqlite3.connect(DATABASE_PATH, timeout=30)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")
-    return conn
-
-
-def _row_to_dict(row: sqlite3.Row | None) -> dict | None:
-    return dict(row) if row else None
-
-
-def _rows_to_dicts(rows: list[sqlite3.Row]) -> list[dict]:
-    return [dict(r) for r in rows]
+def _row_to_dict(row) -> dict | None:
+    if row is None:
+        return None
+    return dict(row._mapping)
 
 
 def get_open_jobs() -> list[dict]:
-    conn = get_conn()
-    try:
+    with engine.connect() as conn:
         rows = conn.execute(
-            """
-            SELECT js.id, js.title, js.salary_range, js.closing_date, js.urgent,
-                   c.name AS client_name
-            FROM job_specs js
-            LEFT JOIN clients c ON js.client_id = c.id
-            WHERE js.status = 'open'
-            ORDER BY js.urgent DESC, js.title
-            """
+            text("""
+                SELECT id, title, salary_range, closing_date, urgent
+                FROM web_jobs
+                WHERE status = 'open'
+                ORDER BY urgent DESC, id DESC
+            """)
         ).fetchall()
         jobs = []
         for row in rows:
-            item = dict(row)
+            item = dict(row._mapping)
             item["urgent"] = bool(item.get("urgent"))
             jobs.append(item)
         return jobs
-    finally:
-        conn.close()
 
 
 def get_job_by_id(spec_id: int) -> dict | None:
-    conn = get_conn()
-    try:
+    with engine.connect() as conn:
         row = conn.execute(
-            """
-            SELECT js.id, js.title, js.salary_range, js.closing_date,
-                   js.min_requirements, js.raw_text, c.name AS client_name
-            FROM job_specs js
-            LEFT JOIN clients c ON js.client_id = c.id
-            WHERE js.id = ? AND js.status = 'open'
-            """,
-            (spec_id,),
+            text("""
+                SELECT id, title, salary_range, closing_date,
+                       min_requirements, raw_text
+                FROM web_jobs
+                WHERE id = :spec_id
+            """),
+            {"spec_id": spec_id},
         ).fetchone()
         return _row_to_dict(row)
-    finally:
-        conn.close()
 
 
 def get_job_apply_context(spec_id: int) -> dict | None:
-    """Internal: job fields needed for website apply scoring."""
-    conn = get_conn()
-    try:
+    with engine.connect() as conn:
         row = conn.execute(
-            """
-            SELECT js.id, js.title, js.salary_range, js.closing_date,
-                   js.min_requirements, js.raw_text, c.name AS client_name
-            FROM job_specs js
-            LEFT JOIN clients c ON js.client_id = c.id
-            WHERE js.id = ? AND js.status = 'open'
-            """,
-            (spec_id,),
+            text("""
+                SELECT id, title, salary_range, closing_date,
+                       min_requirements, raw_text
+                FROM web_jobs
+                WHERE id = :spec_id AND status = 'open'
+            """),
+            {"spec_id": spec_id},
         ).fetchone()
         return _row_to_dict(row)
-    finally:
-        conn.close()
 
 
 def check_duplicate(email: str) -> bool:
     if not (email or "").strip():
         return False
-    conn = get_conn()
-    try:
-        row = conn.execute(
-            """
-            SELECT 1 FROM candidates
-            WHERE LOWER(TRIM(email)) = LOWER(TRIM(?))
-            LIMIT 1
-            """,
-            (email.strip(),),
-        ).fetchone()
-        return row is not None
-    finally:
-        conn.close()
+    with engine.connect() as conn:
+        count = conn.execute(
+            text("""
+                SELECT COUNT(*)
+                FROM web_candidates
+                WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email))
+            """),
+            {"email": email.strip()},
+        ).scalar()
+        return int(count or 0) > 0
 
 
 def save_candidate(
@@ -107,21 +82,24 @@ def save_candidate(
     cv_file_path: str,
     raw_cv_text: str,
 ) -> int:
-    conn = get_conn()
-    try:
-        cur = conn.execute(
-            """
-            INSERT INTO candidates
-                (full_name, email, phone, skills, experience,
-                 raw_cv_text, cv_file_path, added_by, status)
-            VALUES (?, ?, ?, '', '', ?, ?, '0', 'web_submission')
-            """,
-            (full_name, email, phone, raw_cv_text, cv_file_path),
-        )
-        conn.commit()
-        return int(cur.lastrowid)
-    finally:
-        conn.close()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("""
+                INSERT INTO web_candidates
+                    (full_name, email, phone, cv_file_path, raw_cv_text)
+                VALUES
+                    (:full_name, :email, :phone, :cv_file_path, :raw_cv_text)
+                RETURNING id
+            """),
+            {
+                "full_name": full_name,
+                "email": email,
+                "phone": phone,
+                "cv_file_path": cv_file_path,
+                "raw_cv_text": raw_cv_text,
+            },
+        ).fetchone()
+        return int(row[0])
 
 
 def save_submission(
@@ -144,51 +122,47 @@ def save_submission(
     analysis_payload["source"] = "website"
     stored_analysis = json.dumps(analysis_payload)
 
-    conn = get_conn()
-    try:
-        cur = conn.execute(
-            """
-            INSERT INTO submissions
-                (candidate_id, spec_id, submitted_by, stage1_score,
-                 stage1_analysis, stage1_questions, stage1_draft_email, is_pool)
-            VALUES (?, ?, '0', ?, ?, ?, NULL, 0)
-            """,
-            (
-                candidate_id,
-                spec_id,
-                stage1_score,
-                stored_analysis,
-                stage1_questions,
-            ),
-        )
-        conn.commit()
-        return int(cur.lastrowid)
-    finally:
-        conn.close()
+    with engine.begin() as conn:
+        row = conn.execute(
+            text("""
+                INSERT INTO web_submissions
+                    (candidate_id, job_id, stage1_score, stage1_analysis,
+                     stage1_questions, gate1_passed)
+                VALUES
+                    (:candidate_id, :job_id, :stage1_score, :stage1_analysis,
+                     :stage1_questions, :gate1_passed)
+                RETURNING id
+            """),
+            {
+                "candidate_id": candidate_id,
+                "job_id": spec_id,
+                "stage1_score": int(round(float(stage1_score))),
+                "stage1_analysis": stored_analysis,
+                "stage1_questions": stage1_questions,
+                "gate1_passed": gate1_passed,
+            },
+        ).fetchone()
+        return int(row[0])
 
 
 def save_interview_answers(submission_id: int, answers_json: list | dict) -> None:
-    conn = get_conn()
-    try:
+    with engine.begin() as conn:
         conn.execute(
-            """
-            INSERT INTO interview_answers (submission_id, raw_answer_text, logged_by)
-            VALUES (?, ?, 'website')
-            """,
-            (submission_id, json.dumps(answers_json)),
+            text("""
+                INSERT INTO web_interview_answers (submission_id, answers_json)
+                VALUES (:submission_id, :answers_json)
+            """),
+            {
+                "submission_id": submission_id,
+                "answers_json": json.dumps(answers_json),
+            },
         )
-        conn.commit()
-    finally:
-        conn.close()
 
 
 def get_stats_counts() -> dict[str, int]:
-    conn = get_conn()
-    try:
-        candidates = conn.execute("SELECT COUNT(*) FROM candidates").fetchone()[0]
-        return {"candidates": int(candidates)}
-    finally:
-        conn.close()
+    with engine.connect() as conn:
+        count = conn.execute(text("SELECT COUNT(*) FROM web_candidates")).scalar()
+        return {"candidates": int(count or 0)}
 
 
 def update_stage2_score(
@@ -197,20 +171,58 @@ def update_stage2_score(
     combined_score: float,
     stage2_analysis: str = "",
 ) -> None:
-    conn = get_conn()
-    try:
+    del stage2_analysis
+    with engine.begin() as conn:
         conn.execute(
-            """
-            UPDATE submissions
-            SET stage2_score = ?,
-                combined_score = ?,
-                stage2_analysis = ?,
-                stage2_at = datetime('now'),
-                status = 'stage2_complete'
-            WHERE id = ?
-            """,
-            (stage2_score, combined_score, stage2_analysis, submission_id),
+            text("""
+                UPDATE web_submissions
+                SET stage2_score = :stage2_score,
+                    combined_score = :combined_score,
+                    updated_at = CURRENT_TIMESTAMP
+                WHERE id = :submission_id
+            """),
+            {
+                "stage2_score": int(round(float(stage2_score))),
+                "combined_score": int(round(float(combined_score))),
+                "submission_id": submission_id,
+            },
         )
-        conn.commit()
-    finally:
-        conn.close()
+
+
+def upsert_web_jobs(jobs: list[dict]) -> int:
+    synced = 0
+    with engine.begin() as conn:
+        for job in jobs:
+            conn.execute(
+                text("""
+                    INSERT INTO web_jobs (
+                        id, title, salary_range, closing_date, urgent,
+                        min_requirements, raw_text, status, synced_at
+                    )
+                    VALUES (
+                        :id, :title, :salary_range, :closing_date, :urgent,
+                        :min_requirements, :raw_text, :status, CURRENT_TIMESTAMP
+                    )
+                    ON CONFLICT (id) DO UPDATE SET
+                        title = EXCLUDED.title,
+                        salary_range = EXCLUDED.salary_range,
+                        closing_date = EXCLUDED.closing_date,
+                        urgent = EXCLUDED.urgent,
+                        min_requirements = EXCLUDED.min_requirements,
+                        raw_text = EXCLUDED.raw_text,
+                        status = EXCLUDED.status,
+                        synced_at = CURRENT_TIMESTAMP
+                """),
+                {
+                    "id": job["id"],
+                    "title": job["title"],
+                    "salary_range": job.get("salary_range"),
+                    "closing_date": job.get("closing_date"),
+                    "urgent": bool(job.get("urgent")),
+                    "min_requirements": job.get("min_requirements"),
+                    "raw_text": job.get("raw_text"),
+                    "status": job.get("status", "open"),
+                },
+            )
+            synced += 1
+    return synced

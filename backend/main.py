@@ -18,14 +18,22 @@ from fastapi.middleware.cors import CORSMiddleware
 import ai_engine
 import database as db
 import notifications
-from config import CV_STORAGE_PATH, WEBSITE_PORT
-from models import JobResponse, SubmitAnswersRequest
+from config import SYNC_API_KEY, WEBSITE_PORT
+from db import engine, init_db
+from models import JobResponse, SubmitAnswersRequest, SyncJobsRequest
 from spec_utils import is_yazoo_spec, strip_salary_from_text
+
+from sqlalchemy import text
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 app = FastAPI(title="CHR Consulting Recruitment API", version="1.0.0")
+
+
+@app.on_event("startup")
+async def startup_event():
+    init_db()
 
 app.add_middleware(
     CORSMiddleware,
@@ -54,6 +62,17 @@ def _public_job(job: dict) -> JobResponse:
         if payload.get("raw_text"):
             payload["raw_text"] = strip_salary_from_text(payload["raw_text"])
     return JobResponse(**payload)
+
+
+@app.get("/health")
+def health_check():
+    try:
+        with engine.connect() as conn:
+            conn.execute(text("SELECT 1"))
+        return {"status": "ok", "database": "connected"}
+    except Exception as exc:
+        log.exception("Health check failed")
+        return {"status": "error", "database": str(exc)}
 
 
 @app.get("/")
@@ -98,6 +117,16 @@ def _safe_filename(name: str) -> str:
     return "".join(c if c.isalnum() or c in "._-" else "_" for c in base)
 
 
+@app.post("/api/sync-jobs")
+def sync_jobs(body: SyncJobsRequest):
+    if not SYNC_API_KEY or body.api_key != SYNC_API_KEY:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+
+    jobs = [job.model_dump() for job in body.jobs]
+    synced = db.upsert_web_jobs(jobs)
+    return {"synced": synced, "status": "ok"}
+
+
 @app.post("/api/apply")
 async def apply(
     full_name: str = Form(...),
@@ -124,7 +153,7 @@ async def apply(
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
 
-    storage_dir = Path(CV_STORAGE_PATH)
+    storage_dir = Path("/tmp")
     storage_dir.mkdir(parents=True, exist_ok=True)
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     stored_name = f"website_{timestamp}_{_safe_filename(cv_file.filename or 'cv' + suffix)}"

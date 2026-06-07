@@ -9,6 +9,8 @@ _PLATFORM_ROOT = Path(__file__).resolve().parent.parent.parent
 load_dotenv(_PLATFORM_ROOT / ".env")
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "")
+DATABASE_URL = os.getenv("DATABASE_URL", "")
+SYNC_API_KEY = os.getenv("SYNC_API_KEY", "")
 CV_STORAGE_PATH = os.getenv(
     "CV_STORAGE_PATH",
     str(_PLATFORM_ROOT / "chr_website" / "uploads"),

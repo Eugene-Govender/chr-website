@@ -41,6 +41,18 @@ MOCK_STAGE2_RESULT = {
 }
 
 
+@pytest.fixture(scope="session", autouse=True)
+def ensure_database():
+    import os
+
+    if not os.getenv("DATABASE_URL"):
+        pytest.skip("DATABASE_URL not set — skipping Postgres-backed API tests")
+
+    from db import init_db
+
+    init_db()
+
+
 @pytest.fixture
 def client():
     return TestClient(app)
