@@ -1,78 +1,120 @@
-"""PostgreSQL read/write access for CHR website tables."""
+"""PostgreSQL read/write access for CHR website (unified recruitment tables)."""
 
 import json
+from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import text
+import psycopg2
+import psycopg2.extras
 
-from db import engine
+from config import DATABASE_URL
 
 
-def _row_to_dict(row) -> dict | None:
-    if row is None:
-        return None
-    return dict(row._mapping)
+def _fix_postgres_url(url: str) -> str:
+    if url.startswith("postgres://"):
+        return url.replace("postgres://", "postgresql://", 1)
+    return url
+
+
+@contextmanager
+def get_conn():
+    conn = psycopg2.connect(
+        _fix_postgres_url(DATABASE_URL),
+        cursor_factory=psycopg2.extras.RealDictCursor,
+    )
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def check_connection() -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1")
+
+
+def _rows(cur) -> list[dict]:
+    return [dict(row) for row in cur.fetchall()]
+
+
+def _one(cur) -> dict | None:
+    row = cur.fetchone()
+    return dict(row) if row else None
 
 
 def get_open_jobs() -> list[dict]:
-    with engine.connect() as conn:
-        rows = conn.execute(
-            text("""
-                SELECT id, title, salary_range, closing_date, urgent
-                FROM web_jobs
-                WHERE status = 'open'
-                ORDER BY urgent DESC, id DESC
-            """)
-        ).fetchall()
-        jobs = []
-        for row in rows:
-            item = dict(row._mapping)
-            item["urgent"] = bool(item.get("urgent"))
-            jobs.append(item)
-        return jobs
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT js.id, js.title, js.salary_range, js.closing_date, js.urgent,
+                       COALESCE(cl.name, 'No client') AS client_name
+                FROM job_specs js
+                LEFT JOIN clients cl ON js.client_id = cl.id
+                WHERE js.status = 'open'
+                ORDER BY js.urgent DESC, js.id DESC
+                """
+            )
+            jobs = _rows(cur)
+    for job in jobs:
+        job["urgent"] = bool(job.get("urgent"))
+    return jobs
 
 
 def get_job_by_id(spec_id: int) -> dict | None:
-    with engine.connect() as conn:
-        row = conn.execute(
-            text("""
-                SELECT id, title, salary_range, closing_date,
-                       min_requirements, raw_text
-                FROM web_jobs
-                WHERE id = :spec_id
-            """),
-            {"spec_id": spec_id},
-        ).fetchone()
-        return _row_to_dict(row)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT js.id, js.title, js.salary_range, js.closing_date,
+                       js.min_requirements, js.raw_text,
+                       COALESCE(cl.name, 'No client') AS client_name
+                FROM job_specs js
+                LEFT JOIN clients cl ON js.client_id = cl.id
+                WHERE js.id = %s
+                """,
+                (spec_id,),
+            )
+            return _one(cur)
 
 
 def get_job_apply_context(spec_id: int) -> dict | None:
-    with engine.connect() as conn:
-        row = conn.execute(
-            text("""
-                SELECT id, title, salary_range, closing_date,
-                       min_requirements, raw_text
-                FROM web_jobs
-                WHERE id = :spec_id AND status = 'open'
-            """),
-            {"spec_id": spec_id},
-        ).fetchone()
-        return _row_to_dict(row)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT js.id, js.title, js.salary_range, js.closing_date,
+                       js.min_requirements, js.raw_text,
+                       COALESCE(cl.name, 'No client') AS client_name
+                FROM job_specs js
+                LEFT JOIN clients cl ON js.client_id = cl.id
+                WHERE js.id = %s AND js.status = 'open'
+                """,
+                (spec_id,),
+            )
+            return _one(cur)
 
 
 def check_duplicate(email: str) -> bool:
     if not (email or "").strip():
         return False
-    with engine.connect() as conn:
-        count = conn.execute(
-            text("""
-                SELECT COUNT(*)
-                FROM web_candidates
-                WHERE LOWER(TRIM(email)) = LOWER(TRIM(:email))
-            """),
-            {"email": email.strip()},
-        ).scalar()
-        return int(count or 0) > 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COUNT(*) AS count
+                FROM candidates
+                WHERE LOWER(TRIM(email)) = LOWER(TRIM(%s))
+                """,
+                (email.strip(),),
+            )
+            row = cur.fetchone()
+            return int(row["count"] or 0) > 0
 
 
 def save_candidate(
@@ -82,24 +124,20 @@ def save_candidate(
     cv_file_path: str,
     raw_cv_text: str,
 ) -> int:
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("""
-                INSERT INTO web_candidates
-                    (full_name, email, phone, cv_file_path, raw_cv_text)
-                VALUES
-                    (:full_name, :email, :phone, :cv_file_path, :raw_cv_text)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO candidates
+                    (full_name, email, phone, cv_file_path, raw_cv_text,
+                     added_by, status)
+                VALUES (%s, %s, %s, %s, %s, '0', 'web_submission')
                 RETURNING id
-            """),
-            {
-                "full_name": full_name,
-                "email": email,
-                "phone": phone,
-                "cv_file_path": cv_file_path,
-                "raw_cv_text": raw_cv_text,
-            },
-        ).fetchone()
-        return int(row[0])
+                """,
+                (full_name, email, phone, cv_file_path, raw_cv_text),
+            )
+            row = cur.fetchone()
+            return int(row["id"])
 
 
 def save_submission(
@@ -122,47 +160,46 @@ def save_submission(
     analysis_payload["source"] = "website"
     stored_analysis = json.dumps(analysis_payload)
 
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("""
-                INSERT INTO web_submissions
-                    (candidate_id, job_id, stage1_score, stage1_analysis,
-                     stage1_questions, gate1_passed)
-                VALUES
-                    (:candidate_id, :job_id, :stage1_score, :stage1_analysis,
-                     :stage1_questions, :gate1_passed)
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO submissions
+                    (candidate_id, spec_id, submitted_by, stage1_score,
+                     stage1_analysis, stage1_questions)
+                VALUES (%s, %s, '0', %s, %s, %s)
                 RETURNING id
-            """),
-            {
-                "candidate_id": candidate_id,
-                "job_id": spec_id,
-                "stage1_score": int(round(float(stage1_score))),
-                "stage1_analysis": stored_analysis,
-                "stage1_questions": stage1_questions,
-                "gate1_passed": gate1_passed,
-            },
-        ).fetchone()
-        return int(row[0])
+                """,
+                (
+                    candidate_id,
+                    spec_id,
+                    float(stage1_score),
+                    stored_analysis,
+                    stage1_questions,
+                ),
+            )
+            row = cur.fetchone()
+            return int(row["id"])
 
 
 def save_interview_answers(submission_id: int, answers_json: list | dict) -> None:
-    with engine.begin() as conn:
-        conn.execute(
-            text("""
-                INSERT INTO web_interview_answers (submission_id, answers_json)
-                VALUES (:submission_id, :answers_json)
-            """),
-            {
-                "submission_id": submission_id,
-                "answers_json": json.dumps(answers_json),
-            },
-        )
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO interview_answers (submission_id, raw_answer_text, logged_by)
+                VALUES (%s, %s, '0')
+                """,
+                (submission_id, json.dumps(answers_json)),
+            )
 
 
 def get_stats_counts() -> dict[str, int]:
-    with engine.connect() as conn:
-        count = conn.execute(text("SELECT COUNT(*) FROM web_candidates")).scalar()
-        return {"candidates": int(count or 0)}
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute("SELECT COUNT(*) AS count FROM candidates")
+            row = cur.fetchone()
+            return {"candidates": int(row["count"] or 0)}
 
 
 def update_stage2_score(
@@ -172,57 +209,19 @@ def update_stage2_score(
     stage2_analysis: str = "",
 ) -> None:
     del stage2_analysis
-    with engine.begin() as conn:
-        conn.execute(
-            text("""
-                UPDATE web_submissions
-                SET stage2_score = :stage2_score,
-                    combined_score = :combined_score,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = :submission_id
-            """),
-            {
-                "stage2_score": int(round(float(stage2_score))),
-                "combined_score": int(round(float(combined_score))),
-                "submission_id": submission_id,
-            },
-        )
-
-
-def upsert_web_jobs(jobs: list[dict]) -> int:
-    synced = 0
-    with engine.begin() as conn:
-        for job in jobs:
-            conn.execute(
-                text("""
-                    INSERT INTO web_jobs (
-                        id, title, salary_range, closing_date, urgent,
-                        min_requirements, raw_text, status, synced_at
-                    )
-                    VALUES (
-                        :id, :title, :salary_range, :closing_date, :urgent,
-                        :min_requirements, :raw_text, :status, CURRENT_TIMESTAMP
-                    )
-                    ON CONFLICT (id) DO UPDATE SET
-                        title = EXCLUDED.title,
-                        salary_range = EXCLUDED.salary_range,
-                        closing_date = EXCLUDED.closing_date,
-                        urgent = EXCLUDED.urgent,
-                        min_requirements = EXCLUDED.min_requirements,
-                        raw_text = EXCLUDED.raw_text,
-                        status = EXCLUDED.status,
-                        synced_at = CURRENT_TIMESTAMP
-                """),
-                {
-                    "id": job["id"],
-                    "title": job["title"],
-                    "salary_range": job.get("salary_range"),
-                    "closing_date": job.get("closing_date"),
-                    "urgent": bool(job.get("urgent")),
-                    "min_requirements": job.get("min_requirements"),
-                    "raw_text": job.get("raw_text"),
-                    "status": job.get("status", "open"),
-                },
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                UPDATE submissions
+                SET stage2_score = %s,
+                    combined_score = %s,
+                    stage2_at = CURRENT_TIMESTAMP
+                WHERE id = %s
+                """,
+                (
+                    float(stage2_score),
+                    float(combined_score),
+                    submission_id,
+                ),
             )
-            synced += 1
-    return synced

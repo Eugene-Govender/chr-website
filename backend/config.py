@@ -10,11 +10,7 @@ load_dotenv(_PLATFORM_ROOT / ".env")
 
 DATABASE_PATH = os.getenv("DATABASE_PATH", "")
 DATABASE_URL = os.getenv("DATABASE_URL", "")
-SYNC_API_KEY = os.getenv("SYNC_API_KEY", "")
-CV_STORAGE_PATH = os.getenv(
-    "CV_STORAGE_PATH",
-    str(_PLATFORM_ROOT / "chr_website" / "uploads"),
-)
+CV_STORAGE_PATH = os.getenv("CV_STORAGE_PATH", "/data/cvs/")
 WEBSITE_PORT = int(os.getenv("WEBSITE_PORT", "8000"))
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
 

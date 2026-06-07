@@ -48,10 +48,6 @@ def ensure_database():
     if not os.getenv("DATABASE_URL"):
         pytest.skip("DATABASE_URL not set — skipping Postgres-backed API tests")
 
-    from db import init_db
-
-    init_db()
-
 
 @pytest.fixture
 def client():
