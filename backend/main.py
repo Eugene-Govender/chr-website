@@ -2,6 +2,8 @@
 
 import json
 import logging
+import os
+import re
 import sys
 import traceback
 from datetime import datetime
@@ -12,8 +14,12 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from secure import Secure
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 import ai_engine
 import database as db
@@ -26,6 +32,19 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger(__name__)
 
 app = FastAPI(title="CHR Consulting Recruitment API", version="1.0.0")
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+secure_headers = Secure()
+
+
+@app.middleware("http")
+async def set_secure_headers(request, call_next):
+    response = await call_next(request)
+    secure_headers.framework.fastapi(response)
+    return response
 
 
 def _cors_origins() -> list[str]:
@@ -49,10 +68,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-MAX_CV_BYTES = 5 * 1024 * 1024
-ALLOWED_EXTENSIONS = {".pdf", ".docx"}
-
 
 def _public_job(job: dict) -> JobResponse:
     payload = dict(job)
@@ -85,7 +100,8 @@ def root():
 
 
 @app.get("/api/jobs", response_model=list[JobResponse])
-def list_jobs():
+@limiter.limit("60/minute")
+def list_jobs(request: Request):
     jobs = db.get_open_jobs()
     return [_public_job(job) for job in jobs]
 
@@ -117,20 +133,37 @@ def _safe_filename(name: str) -> str:
 
 
 @app.post("/api/apply")
+@limiter.limit("5/hour")
 async def apply(
+    request: Request,
     full_name: str = Form(...),
     email: str = Form(...),
     phone: str = Form(...),
     spec_id: int = Form(...),
     cv_file: UploadFile = File(...),
 ):
-    suffix = Path(cv_file.filename or "").suffix.lower()
-    if suffix not in ALLOWED_EXTENSIONS:
-        raise HTTPException(status_code=400, detail="Only PDF and DOCX files are accepted")
+    if "@" not in email or "." not in email:
+        raise HTTPException(status_code=400, detail="Invalid email address")
 
-    content = await cv_file.read()
-    if len(content) > MAX_CV_BYTES:
-        raise HTTPException(status_code=400, detail="CV file must be 5MB or smaller")
+    if len(full_name.strip()) < 3 or len(full_name) > 100:
+        raise HTTPException(status_code=400, detail="Please provide your full name")
+
+    phone_digits = re.sub(r"\D", "", phone)
+    if len(phone_digits) < 10:
+        raise HTTPException(status_code=400, detail="Please provide a valid phone number")
+
+    contents = await cv_file.read()
+    if len(contents) > 5 * 1024 * 1024:
+        raise HTTPException(status_code=400, detail="File too large. Maximum size is 5MB")
+    await cv_file.seek(0)
+
+    allowed = [".pdf", ".docx"]
+    ext = os.path.splitext(cv_file.filename or "")[1].lower()
+    if ext not in allowed:
+        raise HTTPException(status_code=400, detail="Only PDF and Word documents accepted")
+
+    suffix = ext
+    content = contents
 
     if db.check_duplicate(email):
         return {
@@ -248,7 +281,8 @@ async def apply(
 
 
 @app.post("/api/submit-answers")
-async def submit_answers(body: SubmitAnswersRequest):
+@limiter.limit("10/hour")
+async def submit_answers(request: Request, body: SubmitAnswersRequest):
     answers = [item.model_dump() for item in body.answers]
 
     try:

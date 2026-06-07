@@ -14,6 +14,7 @@ const FOOTER_LINKS = [
   { to: '/jobs', label: 'Jobs' },
   { to: '/about', label: 'About Us' },
   { to: '/vision', label: 'Our Vision' },
+  { to: '/privacy', label: 'Privacy Policy' },
 ]
 
 export default function Footer() {
