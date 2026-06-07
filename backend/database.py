@@ -117,6 +117,18 @@ def check_duplicate(email: str) -> bool:
             return int(row["count"] or 0) > 0
 
 
+def log_audit(action: str, detail: str, telegram_id: str = "0") -> None:
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO audit_log (telegram_id, action, detail)
+                VALUES (%s, %s, %s)
+                """,
+                (telegram_id, action, detail),
+            )
+
+
 def save_candidate(
     full_name: str,
     email: str,

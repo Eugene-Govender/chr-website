@@ -34,6 +34,9 @@ export default function Apply() {
   const [cvFile, setCvFile] = useState(null)
   const [fileError, setFileError] = useState('')
   const [formError, setFormError] = useState('')
+  const [consentPopia, setConsentPopia] = useState(false)
+  const [consentAccuracy, setConsentAccuracy] = useState(false)
+  const [consentError, setConsentError] = useState('')
   const [analysisStep, setAnalysisStep] = useState(0)
   const [result, setResult] = useState(null)
 
@@ -69,6 +72,11 @@ export default function Apply() {
   const submitForm = async (e) => {
     e.preventDefault()
     setFormError('')
+    setConsentError('')
+    if (!consentPopia || !consentAccuracy) {
+      setConsentError('Please accept both declarations to continue')
+      return
+    }
     if (!form.full_name.trim() || !form.email.trim() || !form.phone.trim()) {
       setFormError('Please fill in all required fields')
       return
@@ -96,6 +104,8 @@ export default function Apply() {
       data.append('phone', form.phone.trim())
       data.append('spec_id', spec_id)
       data.append('cv_file', cvFile)
+      data.append('consent_popia', 'true')
+      data.append('consent_timestamp', new Date().toISOString())
 
       const res = await axios.post(`${API_BASE_URL}/api/apply`, data, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -309,13 +319,63 @@ export default function Apply() {
               {fileError && <p className="mt-2 text-red-600 text-sm">{fileError}</p>}
             </div>
           </div>
-          <AnimatedButton type="submit" variant="primary-full">
+
+          <div className="space-y-4 border-t border-gray-100 pt-6">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consentPopia}
+                onChange={(e) => {
+                  setConsentPopia(e.target.checked)
+                  setConsentError('')
+                }}
+                className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-accent focus:ring-accent"
+              />
+              <span className="text-sm text-gray-500 leading-relaxed">
+                I consent to CHR Consulting collecting, storing and processing my personal
+                information for recruitment purposes in accordance with the{' '}
+                <Link to="/privacy" className="text-accent hover:underline">
+                  Protection of Personal Information Act (POPIA)
+                </Link>
+                . I understand my information will be kept for up to 12 months.
+              </span>
+            </label>
+
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={consentAccuracy}
+                onChange={(e) => {
+                  setConsentAccuracy(e.target.checked)
+                  setConsentError('')
+                }}
+                className="mt-1 h-4 w-4 shrink-0 rounded border-gray-300 text-accent focus:ring-accent"
+              />
+              <span className="text-sm text-gray-500 leading-relaxed">
+                I confirm that all information provided in this application, including my CV and
+                personal details, is accurate, complete and true to the best of my knowledge. I
+                understand that any misrepresentation may result in my application being
+                disqualified.
+              </span>
+            </label>
+
+            {consentError && (
+              <p className="text-red-600 text-sm">{consentError}</p>
+            )}
+          </div>
+
+          <AnimatedButton
+            type="submit"
+            variant="primary-full"
+            disabled={!consentPopia || !consentAccuracy}
+            className={
+              !consentPopia || !consentAccuracy
+                ? '!bg-gray-300 !text-gray-500 !shadow-none hover:!brightness-100'
+                : ''
+            }
+          >
             Analyse My CV →
           </AnimatedButton>
-          <p className="text-gray-400 text-xs text-center">
-            By submitting, you agree to CHR Consulting processing your personal information
-            for recruitment purposes.
-          </p>
         </form>
       </div>
     </div>

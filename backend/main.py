@@ -141,7 +141,12 @@ async def apply(
     phone: str = Form(...),
     spec_id: int = Form(...),
     cv_file: UploadFile = File(...),
+    consent_popia: str | None = Form(None),
+    consent_timestamp: str | None = Form(None),
 ):
+    if str(consent_popia or "").lower() not in ("true", "1"):
+        raise HTTPException(status_code=400, detail="POPIA consent is required")
+
     if "@" not in email or "." not in email:
         raise HTTPException(status_code=400, detail="Invalid email address")
 
@@ -237,6 +242,8 @@ async def apply(
         "gaps": gaps,
         "recommendation": recommendation,
         "gate1_reason": gate1.get("reason", ""),
+        "consent_popia": True,
+        "consent_timestamp": consent_timestamp or datetime.now().isoformat(),
     }
 
     candidate_id = db.save_candidate(
@@ -254,6 +261,23 @@ async def apply(
         stage1_questions=json.dumps(questions) if questions else None,
         gate1_passed=True,
     )
+
+    try:
+        db.log_audit(
+            "website_popia_consent",
+            json.dumps(
+                {
+                    "candidate_id": candidate_id,
+                    "submission_id": submission_id,
+                    "email": email.strip(),
+                    "consent_popia": True,
+                    "consent_timestamp": consent_timestamp or datetime.now().isoformat(),
+                    "source": "website_apply",
+                }
+            ),
+        )
+    except Exception:
+        log.exception("Failed to log POPIA consent to audit")
 
     role_title = job.get("title") or "Role"
     try:
