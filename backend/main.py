@@ -18,7 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import ai_engine
 import database as db
 import notifications
-from config import CV_STORAGE_PATH, WEBSITE_PORT
+from config import CV_STORAGE_PATH, FRONTEND_URL, WEBSITE_PORT
 from models import JobResponse, SubmitAnswersRequest
 from spec_utils import is_yazoo_spec, strip_salary_from_text
 
@@ -27,14 +27,25 @@ log = logging.getLogger(__name__)
 
 app = FastAPI(title="CHR Consulting Recruitment API", version="1.0.0")
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
+
+def _cors_origins() -> list[str]:
+    origins = [
         "http://localhost:5173",
         "https://chr-website-production.up.railway.app",
+        "https://appealing-elegance-production-5d3c.up.railway.app",
         "https://chrconsulting.co.za",
         "https://www.chrconsulting.co.za",
-    ],
+    ]
+    if FRONTEND_URL:
+        url = FRONTEND_URL.rstrip("/")
+        if url not in origins:
+            origins.append(url)
+    return origins
+
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins(),
     allow_methods=["*"],
     allow_headers=["*"],
 )
