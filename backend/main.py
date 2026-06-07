@@ -31,8 +31,11 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "https://overhead-wow-battery.ngrok-free.dev",
         "https://chrconsulting.co.za",
         "https://www.chrconsulting.co.za",
+        "https://*.railway.app",
+        "https://*.up.railway.app",
         "*",
     ],
     allow_methods=["*"],
