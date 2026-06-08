@@ -12,7 +12,7 @@ const STAT_CONFIG = [
   { key: 'candidates_in_network', label: 'Candidates Placed' },
   { key: 'client_retention', label: 'Client Retention' },
   { key: 'industries_served', label: 'Industries Served' },
-  { key: 'years_experience', label: 'Years in Business' },
+  { key: 'years_experience', label: 'Years of Experience' },
 ]
 
 function parseNumber(value) {
