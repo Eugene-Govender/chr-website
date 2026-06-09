@@ -14,8 +14,9 @@ if str(_BACKEND_DIR) not in sys.path:
     sys.path.insert(0, str(_BACKEND_DIR))
 
 import uvicorn
-from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from secure import Secure
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
@@ -24,7 +25,7 @@ from slowapi.util import get_remote_address
 import ai_engine
 import database as db
 import notifications
-from config import CV_STORAGE_PATH, FRONTEND_URL, WEBSITE_PORT
+from config import CV_STORAGE_PATH, FRONTEND_URL, SYNC_API_KEY, WEBSITE_PORT
 from models import JobResponse, SubmitAnswersRequest
 from spec_utils import is_yazoo_spec, strip_salary_from_text
 
@@ -344,6 +345,27 @@ async def submit_answers(request: Request, body: SubmitAnswersRequest):
         "status": "complete",
         "message": "Application received. We will be in touch within 3 business days.",
     }
+
+
+@app.get("/api/internal/cv/{submission_id}")
+def download_cv_internal(
+    submission_id: int,
+    api_key: str = Query(default=""),
+):
+    """Serve website CV files to trusted internal services (Recruitment Bot, CHR Assistant)."""
+    if not SYNC_API_KEY or api_key != SYNC_API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    record = db.get_submission_cv_path(submission_id)
+    if not record or not record.get("cv_file_path"):
+        raise HTTPException(status_code=404, detail="Submission not found")
+    file_path = Path(record["cv_file_path"])
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="CV file missing on disk")
+    return FileResponse(
+        file_path,
+        filename=file_path.name,
+        media_type="application/octet-stream",
+    )
 
 
 if __name__ == "__main__":

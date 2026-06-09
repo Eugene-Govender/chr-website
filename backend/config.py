@@ -24,6 +24,8 @@ TELEGRAM_BOT_TOKEN = os.getenv("BOT1_TOKEN") or os.getenv("TELEGRAM_BOT_TOKEN", 
 ADMIN_TELEGRAM_ID = os.getenv("ADMIN_TELEGRAM_ID", "")
 IT_OWNER_ID = os.getenv("IT_OWNER_ID", "")
 
+SYNC_API_KEY = os.getenv("SYNC_API_KEY", "")
+
 COMPANY_NAME = os.getenv("COMPANY_NAME", "CHR Consulting")
 COMPANY_PHONE = os.getenv("COMPANY_PHONE", "")
 COMPANY_WEBSITE = os.getenv("COMPANY_WEBSITE", "")

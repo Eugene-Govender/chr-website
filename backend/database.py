@@ -214,6 +214,22 @@ def get_stats_counts() -> dict[str, int]:
             return {"candidates": int(row["count"] or 0)}
 
 
+def get_submission_cv_path(submission_id: int) -> dict | None:
+    """Return CV path for a website submission (submitted_by=0)."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.cv_file_path, c.full_name
+                FROM submissions s
+                JOIN candidates c ON c.id = s.candidate_id
+                WHERE s.id = %s AND s.submitted_by = '0'
+                """,
+                (submission_id,),
+            )
+            return _one(cur)
+
+
 def update_stage2_score(
     submission_id: int,
     stage2_score: float,
