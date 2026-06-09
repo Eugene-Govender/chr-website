@@ -368,5 +368,26 @@ def download_cv_internal(
     )
 
 
+@app.get("/api/internal/cv/candidate/{candidate_id}")
+def download_cv_by_candidate(
+    candidate_id: int,
+    api_key: str = Query(default=""),
+):
+    """Serve website CV by candidate id."""
+    if not SYNC_API_KEY or api_key != SYNC_API_KEY:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    record = db.get_candidate_cv_path(candidate_id)
+    if not record or not record.get("cv_file_path"):
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    file_path = Path(record["cv_file_path"])
+    if not file_path.is_file():
+        raise HTTPException(status_code=404, detail="CV file missing on disk")
+    return FileResponse(
+        file_path,
+        filename=file_path.name,
+        media_type="application/octet-stream",
+    )
+
+
 if __name__ == "__main__":
     uvicorn.run("main:app", host="0.0.0.0", port=WEBSITE_PORT, reload=False)

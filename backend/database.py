@@ -230,6 +230,24 @@ def get_submission_cv_path(submission_id: int) -> dict | None:
             return _one(cur)
 
 
+def get_candidate_cv_path(candidate_id: int) -> dict | None:
+    """Return CV path for a website candidate."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT c.cv_file_path, c.full_name, s.id AS submission_id
+                FROM candidates c
+                JOIN submissions s ON s.candidate_id = c.id
+                WHERE c.id = %s AND s.submitted_by = '0'
+                ORDER BY s.submitted_at DESC
+                LIMIT 1
+                """,
+                (candidate_id,),
+            )
+            return _one(cur)
+
+
 def update_stage2_score(
     submission_id: int,
     stage2_score: float,
