@@ -68,7 +68,10 @@ export default function QuestionForm({ questions, onSubmit, candidateName }) {
         className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-8"
       >
         <h2 className="text-2xl font-bold text-primary mb-2">Review Your Answers</h2>
-        <p className="text-gray-500 mb-6">Hi {candidateName}, please confirm before submitting.</p>
+        <p className="text-gray-500 mb-6">
+          Hi {candidateName}, please confirm before submitting your complete application
+          (CV + screening questions).
+        </p>
         {submitError && (
           <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg p-4 mb-6 text-sm">
             {submitError}
@@ -103,6 +106,10 @@ export default function QuestionForm({ questions, onSubmit, candidateName }) {
       animate={{ opacity: 1, x: 0 }}
       className="max-w-2xl mx-auto bg-white rounded-2xl shadow-lg p-8"
     >
+      <p className="text-sm text-gray-500 mb-4">
+        Complete all questions to submit your application to CHR Consulting.
+      </p>
+
       <div className="mb-6">
         <div className="flex justify-between text-sm text-gray-500 mb-2">
           <span>Question {step + 1} of {questions.length}</span>

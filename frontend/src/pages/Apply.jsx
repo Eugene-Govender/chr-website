@@ -174,8 +174,9 @@ export default function Apply() {
           <div className="text-6xl text-success mb-6">✓</div>
           <h1 className="text-3xl font-bold text-primary mb-4">Application Received!</h1>
           <p className="text-gray-600 mb-2">
-            Thank you {result?.candidate_name || form.full_name}. Our recruitment team will
-            review your complete application and be in touch within 3 business days.
+            Thank you {result?.candidate_name || form.full_name}. Your CV and screening
+            answers have been submitted. Our recruitment team will review your complete
+            application and be in touch within 3 business days.
           </p>
           <p className="text-gray-500 mb-8">In the meantime, explore other opportunities.</p>
           <AnimatedLink to="/jobs">Browse Other Positions</AnimatedLink>
@@ -225,13 +226,14 @@ export default function Apply() {
     }
 
     const score = result.score ?? 0
-    if (score < 60) {
+    if (score < 60 || !result.requires_questions) {
       return (
         <div className="pt-28 pb-16 px-4 min-h-screen bg-background flex items-center justify-center">
           <div className="max-w-lg bg-white rounded-2xl shadow-lg p-8 text-center">
-            <h2 className="text-2xl font-bold text-primary mb-4">Thank you for applying</h2>
+            <h2 className="text-2xl font-bold text-primary mb-4">Application submitted</h2>
             <p className="text-gray-600 mb-8">
-              Our team will review your application and be in touch.
+              Thank you for applying. Our team will review your application and be in touch
+              within 3 business days.
             </p>
             <AnimatedLink to="/jobs" className="px-6 py-3">
               Browse Other Roles
@@ -255,7 +257,20 @@ export default function Apply() {
     <div className="pt-28 pb-16 px-4 min-h-screen bg-background">
       <div className="max-w-xl mx-auto">
         <h1 className="text-3xl font-bold text-primary mb-2">Apply for Role</h1>
-        <p className="text-gray-600 mb-8">{job?.title || 'Loading role...'}</p>
+        <p className="text-gray-600 mb-6">{job?.title || 'Loading role...'}</p>
+
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-5 mb-8 text-sm text-gray-700 leading-relaxed">
+          <p className="font-semibold text-primary mb-2">Before you begin</p>
+          <p>
+            Please allow approximately <strong>10 minutes</strong> to complete this
+            application. After you upload your CV you will be asked a short set of
+            screening questions.
+          </p>
+          <p className="mt-2">
+            Your profile is <strong>only submitted to our recruitment team</strong> once
+            both your CV and all screening questions have been completed.
+          </p>
+        </div>
 
         {formError && (
           <div className="bg-red-50 text-red-700 border border-red-200 rounded-lg p-4 mb-6">{formError}</div>

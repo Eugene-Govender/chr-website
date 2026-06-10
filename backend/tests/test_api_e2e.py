@@ -134,6 +134,7 @@ class TestFullApplyFlow:
         assert apply_body["submission_id"]
         assert apply_body["score"] == MOCK_SCORE_RESULT["score"]
         assert apply_body["questions"] == MOCK_QUESTIONS
+        assert apply_body["requires_questions"] is True
         assert apply_body["candidate_name"] == apply_form["full_name"]
         assert apply_body["cv_text"] == SAMPLE_CV_TEXT
 
@@ -142,11 +143,7 @@ class TestFullApplyFlow:
         ai_mocks["score"].assert_called_once()
         ai_mocks["questions"].assert_called_once()
 
-        telegram_mocks["notify_apply"].assert_awaited_once()
-        apply_args = telegram_mocks["notify_apply"].await_args.args
-        assert apply_args[0] == apply_form["full_name"]
-        assert apply_args[2] == MOCK_SCORE_RESULT["score"]
-        assert apply_args[3] == apply_body["submission_id"]
+        telegram_mocks["notify_apply"].assert_not_awaited()
 
         answers_payload = {
             "submission_id": apply_body["submission_id"],

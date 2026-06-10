@@ -236,6 +236,8 @@ async def apply(
             log.exception("Question generation failed")
             questions = []
 
+    requires_questions = score >= 60 and bool(questions)
+
     analysis_payload = {
         "score": score,
         "analysis": analysis,
@@ -245,6 +247,8 @@ async def apply(
         "gate1_reason": gate1.get("reason", ""),
         "consent_popia": True,
         "consent_timestamp": consent_timestamp or datetime.now().isoformat(),
+        "source": "website",
+        "website_complete": not requires_questions,
     }
 
     candidate_id = db.save_candidate(
@@ -281,16 +285,18 @@ async def apply(
         log.exception("Failed to log POPIA consent to audit")
 
     role_title = job.get("title") or "Role"
-    try:
-        await notifications.notify_new_application(
-            full_name.strip(), role_title, score, submission_id,
-        )
-    except Exception:
-        log.exception("Telegram notification failed")
+    if not requires_questions:
+        try:
+            await notifications.notify_new_application(
+                full_name.strip(), role_title, score, submission_id,
+            )
+        except Exception:
+            log.exception("Telegram notification failed")
 
     return {
         "status": "success",
         "gate1_passed": True,
+        "requires_questions": requires_questions,
         "submission_id": submission_id,
         "candidate_name": full_name.strip(),
         "score": score,
@@ -326,6 +332,7 @@ async def submit_answers(request: Request, body: SubmitAnswersRequest):
             combined_score,
             summary,
         )
+        db.mark_website_application_complete(body.submission_id)
         try:
             await notifications.notify_answers_submitted(
                 body.candidate_name,

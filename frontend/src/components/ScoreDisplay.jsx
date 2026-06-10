@@ -100,7 +100,7 @@ export default function ScoreDisplay({ scoreData, onProceed }) {
         </motion.div>
       )}
 
-      <div className="border border-gray-200 bg-gray-50 rounded-lg p-4 text-sm text-gray-600 mb-6">
+      <div className="border border-gray-200 bg-gray-50 rounded-lg p-4 text-sm text-gray-600 mb-4">
         This compatibility assessment is intended as an initial screening guide only
         and does not constitute a final evaluation of your suitability for this role.
         CHR Consulting reserves the right to consider all applications on their
@@ -108,8 +108,19 @@ export default function ScoreDisplay({ scoreData, onProceed }) {
       </div>
 
       {hasQuestions && score >= 60 && (
+        <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 text-sm text-gray-700 mb-6">
+          <p className="font-semibold text-primary mb-1">One more step to submit</p>
+          <p>
+            Your CV has been reviewed, but your application is <strong>not yet submitted</strong>.
+            Please answer all screening questions on the next screens to complete your
+            application (about 10 minutes in total).
+          </p>
+        </div>
+      )}
+
+      {hasQuestions && score >= 60 && (
         <AnimatedButton type="button" variant="primary-full" onClick={onProceed}>
-          Continue to Questions →
+          Continue to Screening Questions →
         </AnimatedButton>
       )}
     </motion.div>

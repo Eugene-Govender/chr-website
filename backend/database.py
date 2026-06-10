@@ -248,6 +248,31 @@ def get_candidate_cv_path(candidate_id: int) -> dict | None:
             return _one(cur)
 
 
+def mark_website_application_complete(submission_id: int) -> None:
+    """Mark a website submission as fully submitted (CV + questions done)."""
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "SELECT stage1_analysis FROM submissions WHERE id = %s",
+                (submission_id,),
+            )
+            row = cur.fetchone()
+            if not row:
+                return
+            raw = row.get("stage1_analysis") or "{}"
+            try:
+                payload = json.loads(raw)
+                if not isinstance(payload, dict):
+                    payload = {"analysis": raw}
+            except (TypeError, json.JSONDecodeError):
+                payload = {"analysis": raw}
+            payload["website_complete"] = True
+            cur.execute(
+                "UPDATE submissions SET stage1_analysis = %s WHERE id = %s",
+                (json.dumps(payload), submission_id),
+            )
+
+
 def update_stage2_score(
     submission_id: int,
     stage2_score: float,
