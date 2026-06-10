@@ -12,7 +12,12 @@ const STEPS = [
   { icon: '🔍', title: 'Browse Roles', desc: 'Explore our current open positions' },
   { icon: '📄', title: 'Upload Your CV', desc: 'Submit your CV for the role that fits you' },
   { icon: '⚡', title: 'Instant Assessment', desc: 'Receive an immediate compatibility check' },
-  { icon: '💬', title: 'Answer Questions', desc: 'Complete a brief screening and we handle the rest' },
+  { icon: '💬', title: 'Answer Questions', desc: 'Complete a brief screening questionnaire' },
+  {
+    icon: '✅',
+    title: 'Submitted to Admin',
+    desc: 'Your CV and question answers are sent to our recruitment team for review',
+  },
 ]
 
 const TESTIMONIALS = [
@@ -186,9 +191,9 @@ export default function Home() {
           >
             Your Journey to the Right Role
           </motion.h2>
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-8 relative">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-8 relative">
             <div
-              className="hidden md:block absolute top-4 left-[12%] right-[12%] border-t-2 border-dotted border-accent/60 z-0"
+              className="hidden lg:block absolute top-4 left-[10%] right-[10%] border-t-2 border-dotted border-accent/60 z-0"
               aria-hidden
             />
             {STEPS.map((step, i) => (
