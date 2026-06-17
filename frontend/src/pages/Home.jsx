@@ -153,9 +153,7 @@ export default function Home() {
             transition={{ delay: 0.4 }}
             className="flex flex-col sm:flex-row gap-4 justify-center"
           >
-            <AnimatedButton type="button" onClick={() => scrollTo('jobs-section')}>
-              Browse Open Positions
-            </AnimatedButton>
+            <AnimatedLink to="/jobs">Browse Open Positions</AnimatedLink>
             <AnimatedButton type="button" variant="outline" onClick={() => scrollTo('how-it-works')}>
               Learn How It Works
             </AnimatedButton>
