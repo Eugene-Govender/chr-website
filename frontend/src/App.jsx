@@ -10,7 +10,7 @@ import JobDetail from './pages/JobDetail'
 import AboutUs from './pages/AboutUs'
 import OurVision from './pages/OurVision'
 import Apply from './pages/Apply'
-import Privacy from './pages/Privacy'
+import PrivacyPolicy from './pages/PrivacyPolicy'
 
 function AnimatedRoutes() {
   const location = useLocation()
@@ -67,10 +67,10 @@ function AnimatedRoutes() {
           }
         />
         <Route
-          path="/privacy"
+          path="/privacy-policy"
           element={
             <PageTransition>
-              <Privacy />
+              <PrivacyPolicy />
             </PageTransition>
           }
         />

@@ -349,7 +349,7 @@ export default function Apply() {
               <span className="text-sm text-gray-500 leading-relaxed">
                 I consent to CHR Consulting collecting, storing and processing my personal
                 information for recruitment purposes in accordance with the{' '}
-                <Link to="/privacy" className="text-accent hover:underline">
+                <Link to="/privacy-policy" className="text-accent hover:underline">
                   Protection of Personal Information Act (POPIA)
                 </Link>
                 . I understand my information will be kept for up to 12 months.
