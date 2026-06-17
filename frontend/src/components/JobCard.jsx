@@ -35,7 +35,7 @@ function isClosingSoon(closingDate) {
   return date >= today && date <= limit
 }
 
-export default function JobCard({ job, onViewDetails, onApply, index = 0 }) {
+export default function JobCard({ job, onViewDetails, onApply, onShare, index = 0 }) {
   const closingSoon = isClosingSoon(job.closing_date)
 
   return (
@@ -72,6 +72,16 @@ export default function JobCard({ job, onViewDetails, onApply, index = 0 }) {
         )}
       </p>
       <div className="mt-auto flex flex-wrap gap-3">
+        {onShare && (
+          <AnimatedButton
+            type="button"
+            variant="secondary"
+            className="px-5 py-2.5 text-sm"
+            onClick={() => onShare(job)}
+          >
+            Share ↗
+          </AnimatedButton>
+        )}
         <AnimatedButton
           type="button"
           variant="secondary"

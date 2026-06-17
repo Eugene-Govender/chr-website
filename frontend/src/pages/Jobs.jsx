@@ -5,7 +5,9 @@ import { motion } from 'framer-motion'
 import axios from 'axios'
 import { API_BASE_URL } from '../config'
 import JobCard from '../components/JobCard'
+import Toast from '../components/Toast'
 import { AnimatedButton } from '../components/AnimatedButton'
+import { shareJob } from '../utils/shareJob'
 import { fadeInUp } from '../components/AnimatedButton'
 import {
   INDUSTRIES,
@@ -29,6 +31,7 @@ export default function Jobs() {
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [toastMessage, setToastMessage] = useState('')
   const [searchParams, setSearchParams] = useSearchParams()
   const navigate = useNavigate()
   const industryId = searchParams.get('industry')
@@ -115,8 +118,16 @@ export default function Jobs() {
     setSearch('')
   }
 
+  const handleShareJob = async (job) => {
+    await shareJob(job, (message) => {
+      setToastMessage(message)
+      window.setTimeout(() => setToastMessage(''), 2500)
+    })
+  }
+
   return (
     <div className="pt-28 pb-16 px-4 min-h-screen bg-background">
+      <Toast message={toastMessage} />
       <Helmet>
         <title>Open Positions — CHR Consulting</title>
         <meta
@@ -228,6 +239,7 @@ export default function Jobs() {
                 index={index}
                 onViewDetails={(id) => navigate(`/jobs/${id}`)}
                 onApply={(id) => navigate(`/apply/${id}`)}
+                onShare={handleShareJob}
               />
             ))}
           </div>

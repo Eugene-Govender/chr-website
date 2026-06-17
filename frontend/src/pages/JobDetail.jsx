@@ -4,6 +4,8 @@ import { motion } from 'framer-motion'
 import axios from 'axios'
 import { API_BASE_URL } from '../config'
 import { AnimatedButton } from '../components/AnimatedButton'
+import Toast from '../components/Toast'
+import { shareJob } from '../utils/shareJob'
 
 export default function JobDetail() {
   const { spec_id } = useParams()
@@ -11,6 +13,7 @@ export default function JobDetail() {
   const [job, setJob] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [shareMessage, setShareMessage] = useState('')
 
   useEffect(() => {
     setLoading(true)
@@ -21,6 +24,14 @@ export default function JobDetail() {
       .catch(() => setError('This position could not be found or is no longer open.'))
       .finally(() => setLoading(false))
   }, [spec_id])
+
+  const handleShareJob = async () => {
+    if (!job) return
+    await shareJob(job, (message) => {
+      setShareMessage(message)
+      window.setTimeout(() => setShareMessage(''), 2500)
+    })
+  }
 
   if (loading) {
     return (
@@ -60,6 +71,7 @@ export default function JobDetail() {
 
   return (
     <div className="pt-28 pb-16 px-4 min-h-screen bg-background">
+      <Toast message={shareMessage} />
       <div className="max-w-3xl mx-auto">
         <motion.button
           type="button"
@@ -110,9 +122,14 @@ export default function JobDetail() {
             )}
           </div>
 
-          <AnimatedButton type="button" onClick={() => navigate(`/apply/${job.id}`)}>
-            Apply for this Role →
-          </AnimatedButton>
+          <div className="flex flex-wrap gap-3">
+            <AnimatedButton type="button" onClick={() => navigate(`/apply/${job.id}`)}>
+              Apply for this Role →
+            </AnimatedButton>
+            <AnimatedButton type="button" variant="secondary" onClick={handleShareJob}>
+              Share ↗
+            </AnimatedButton>
+          </div>
         </motion.div>
       </div>
     </div>
