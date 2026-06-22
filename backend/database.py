@@ -100,21 +100,77 @@ def get_job_apply_context(spec_id: int) -> dict | None:
             return _one(cur)
 
 
-def check_duplicate(email: str) -> bool:
-    if not (email or "").strip():
+def check_duplicate_application(email: str, spec_id: int) -> bool:
+    """True if this email already has a website application for this role."""
+    if not (email or "").strip() or not spec_id:
         return False
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
                 """
                 SELECT COUNT(*) AS count
-                FROM candidates
-                WHERE LOWER(TRIM(email)) = LOWER(TRIM(%s))
+                FROM submissions s
+                JOIN candidates c ON c.id = s.candidate_id
+                WHERE LOWER(TRIM(c.email)) = LOWER(TRIM(%s))
+                  AND s.spec_id = %s
+                  AND s.submitted_by = '0'
                 """,
-                (email.strip(),),
+                (email.strip(), spec_id),
             )
             row = cur.fetchone()
             return int(row["count"] or 0) > 0
+
+
+def get_candidate_by_email(email: str) -> dict | None:
+    if not (email or "").strip():
+        return None
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT id, full_name, email, phone
+                FROM candidates
+                WHERE LOWER(TRIM(email)) = LOWER(TRIM(%s))
+                ORDER BY id DESC
+                LIMIT 1
+                """,
+                (email.strip(),),
+            )
+            return _one(cur)
+
+
+def save_or_update_candidate(
+    full_name: str,
+    email: str,
+    phone: str,
+    cv_file_path: str,
+    raw_cv_text: str,
+) -> int:
+    existing = get_candidate_by_email(email)
+    if existing:
+        with get_conn() as conn:
+            with conn.cursor() as cur:
+                cur.execute(
+                    """
+                    UPDATE candidates
+                    SET full_name = %s,
+                        phone = %s,
+                        cv_file_path = %s,
+                        raw_cv_text = %s
+                    WHERE id = %s
+                    RETURNING id
+                    """,
+                    (
+                        full_name,
+                        phone,
+                        cv_file_path,
+                        raw_cv_text,
+                        existing["id"],
+                    ),
+                )
+                row = cur.fetchone()
+                return int(row["id"])
+    return save_candidate(full_name, email, phone, cv_file_path, raw_cv_text)
 
 
 def log_audit(action: str, detail: str, telegram_id: str = "0") -> None:

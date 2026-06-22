@@ -82,18 +82,27 @@ class TestPublicEndpoints:
                 assert jobs_by_id[spec_id]["salary_range"] is None
 
 
-class TestDuplicateEmailDetection:
-    def test_duplicate_email_returns_duplicate_status(
+class TestDuplicateApplicationDetection:
+    def test_duplicate_application_for_same_role_returns_duplicate_status(
         self, client, apply_form, cv_upload, ai_mocks,
     ):
-        with patch("main.db.check_duplicate", return_value=True):
+        with patch("main.db.check_duplicate_application", return_value=True):
             response = client.post("/api/apply", data=apply_form, files=cv_upload)
 
         assert response.status_code == 200
         body = response.json()
         assert body["status"] == "duplicate"
-        assert "email already exists" in body["message"].lower()
+        assert "already applied for this role" in body["message"].lower()
         ai_mocks["extract"].assert_not_called()
+
+    def test_same_email_can_apply_for_different_role(
+        self, client, apply_form, cv_upload, ai_mocks,
+    ):
+        with patch("main.db.check_duplicate_application", return_value=False):
+            response = client.post("/api/apply", data=apply_form, files=cv_upload)
+
+        assert response.status_code == 200
+        assert response.json()["status"] != "duplicate"
 
 
 class TestGate1Rejection:
@@ -105,7 +114,7 @@ class TestGate1Rejection:
             "reason": "Missing required professional qualification",
         }
 
-        with patch("main.db.check_duplicate", return_value=False):
+        with patch("main.db.check_duplicate_application", return_value=False):
             response = client.post("/api/apply", data=apply_form, files=cv_upload)
 
         assert response.status_code == 200
@@ -124,7 +133,7 @@ class TestFullApplyFlow:
 
         apply_form = {**apply_form, "email": f"e2e-flow-{uuid.uuid4().hex[:8]}@chr-test.local"}
 
-        with patch("main.db.check_duplicate", return_value=False):
+        with patch("main.db.check_duplicate_application", return_value=False):
             apply_response = client.post("/api/apply", data=apply_form, files=cv_upload)
 
         assert apply_response.status_code == 200

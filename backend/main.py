@@ -171,10 +171,10 @@ async def apply(
     suffix = ext
     content = contents
 
-    if db.check_duplicate(email):
+    if db.check_duplicate_application(email, spec_id):
         return {
             "status": "duplicate",
-            "message": "An application with this email already exists",
+            "message": "You have already applied for this role with this email address.",
         }
 
     job = db.get_job_apply_context(spec_id)
@@ -251,7 +251,7 @@ async def apply(
         "website_complete": not requires_questions,
     }
 
-    candidate_id = db.save_candidate(
+    candidate_id = db.save_or_update_candidate(
         full_name=full_name.strip(),
         email=email.strip(),
         phone=phone.strip(),
