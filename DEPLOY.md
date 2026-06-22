@@ -28,7 +28,8 @@ In the Railway dashboard, open **each service** and set:
 
 **Frontend**
 ```bash
-npm ci && npm run build
+npm ci          # install phase (Railpack)
+npm run build   # build phase
 npm run start   # serves frontend/dist
 ```
 

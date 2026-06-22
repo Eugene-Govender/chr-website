@@ -3,7 +3,7 @@
   "private": true,
   "description": "CHR Consulting website monorepo. Railway frontend service: use Root Directory frontend (or repo root). Backend service: use Root Directory backend.",
   "scripts": {
-    "build": "npm ci --prefix frontend && npm run build --prefix frontend",
+    "build": "npm run build --prefix frontend",
     "start": "npm run start --prefix frontend"
   },
   "engines": {

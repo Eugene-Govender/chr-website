@@ -1,5 +1,7 @@
 node_modules/
 frontend/node_modules/
+.vite/
+frontend/.vite/
 backend/venv/
 __pycache__/
 *.pyc
