@@ -1,8 +1,0 @@
-# Railpack config for CHR website frontend (React/Vite).
-# Used when Railway Root Directory is set to "frontend".
-
-[build]
-nodeVersion = "20"
-
-[deploy]
-startCommand = "npm run start"

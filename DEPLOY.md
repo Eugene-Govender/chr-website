@@ -14,8 +14,13 @@ In the Railway dashboard, open **each service** and set:
 ### Frontend / website service
 - **Settings → Root Directory:** `frontend`  
   *(or leave empty / use repo root — root `package.json` builds the frontend)*
+- **Settings → Build → Custom Build Command:** leave **empty**  
+  *(if set to `npm ci && npm run build` deploys will fail with EBUSY — Railpack already runs `npm ci` in install)*
 - **Health check path:** `/`
-- Deploy config: `frontend/railway.json` + `frontend/railpack.toml`
+- Deploy config: `frontend/railway.json` + `frontend/railpack.json`
+
+> **Railway config file path:** If you set a config file in the dashboard, use  
+> `/frontend/railway.json` (absolute from repo root). The config file does **not** follow Root Directory automatically.
 
 ### Backend / API service
 - **Settings → Root Directory:** `backend` **(required)**
@@ -40,6 +45,10 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 ```
 
 ## Troubleshooting
+
+**`EBUSY: resource busy or locked, rmdir node_modules/.vite`**
+- Custom Build Command in Railway includes `npm ci` — remove it; use only `npm run build` or leave empty.
+- Install phase already runs `npm ci`; build must be `npm run build` only (see `frontend/railway.json`).
 
 **`Railpack could not determine how to build the app`**
 - Frontend: ensure Root Directory is `frontend` or repo root (root `package.json` exists).
