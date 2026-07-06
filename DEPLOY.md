@@ -50,6 +50,10 @@ uvicorn main:app --host 0.0.0.0 --port $PORT
 - Custom Build Command in Railway includes `npm ci` — remove it; use only `npm run build` or leave empty.
 - Install phase already runs `npm ci`; build must be `npm run build` only (see `frontend/railway.json`).
 
+**`Could not resolve entry module "index.html"`**
+- `frontend/railpack.json` must include local source in the build step inputs (install alone only has `package.json` + `node_modules`).
+- Root Directory must be `frontend` (where `index.html` lives), not the monorepo root unless using root `package.json` scripts.
+
 **`Railpack could not determine how to build the app`**
 - Frontend: ensure Root Directory is `frontend` or repo root (root `package.json` exists).
 - Backend: set Root Directory to `backend`.
