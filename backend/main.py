@@ -250,7 +250,7 @@ async def apply(
         "consent_timestamp": consent_timestamp or datetime.now().isoformat(),
         "source": "website",
         "website_complete": not requires_questions,
-        "scorer": "recruitment_bot_aligned_v1",
+        "scorer": "hybrid_v2_bot_prompt_12k_context",
     }
 
     candidate_id = db.save_or_update_candidate(

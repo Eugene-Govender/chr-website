@@ -21,6 +21,12 @@ from config import ANTHROPIC_API_KEY, ANTHROPIC_SSL_VERIFY, MODEL_HAIKU, MODEL_S
 
 log = logging.getLogger(__name__)
 
+# Hybrid Stage 1: same windows as Recruitment Bot (bot prompt + long context)
+STAGE1_SPEC_CHARS = 12_000
+STAGE1_CV_CHARS = 12_000
+GATE1_REQ_CHARS = 6_000
+GATE1_CV_CHARS = 12_000
+
 
 def _build_client() -> anthropic.Anthropic:
     verify = certifi.where() if ANTHROPIC_SSL_VERIFY else False
@@ -154,10 +160,10 @@ Return ONLY valid JSON with these exact keys:
 Return only the JSON object, no other text."""
 
     prompt = f"""MINIMUM REQUIREMENTS (all must be met):
-{(min_requirements or 'None specified')[:3000]}
+{(min_requirements or 'None specified')[:GATE1_REQ_CHARS]}
 
 CANDIDATE CV:
-{cv_text[:3500]}"""
+{cv_text[:GATE1_CV_CHARS]}"""
 
     raw = _call_model(MODEL_HAIKU, system, prompt, max_tokens=800)
     data = _parse_json_response(
@@ -174,13 +180,8 @@ CANDIDATE CV:
 
 def score_cv(cv_text: str, job_spec_text: str, candidate_name: str = "Candidate") -> dict:
     """
-    Stage 1 score — identical prompt/truncation/date context to Recruitment Bot
-    `score_cv_against_spec`. Also returns interview questions from the same call.
-
-    Website-facing keys are mapped for existing apply API consumers:
-      analysis <- summary
-      matched  <- matched_skills
-      questions <- interview_questions
+    Hybrid Stage 1 — same as Recruitment Bot `score_cv_against_spec`:
+    structured analyst prompt + SAST today-date + 12k CV/spec windows.
     """
     system = f"""You are an expert recruitment analyst. Analyse a CV against a job specification.
 
@@ -204,6 +205,7 @@ Generate 5-8 targeted interview questions in the same response that address gaps
 Questions must be specific to this candidate and role, not generic.
 Do not ask the candidate to explain employment dates that are already clearly in the past relative to today.
 Only question a date if it is actually in the future, or if the timeline is genuinely unclear or inconsistent.
+Use the full job specification and CV text provided — weigh both early career and recent roles.
 Return only the JSON object."""
 
     prompt = f"""{today_context()}
@@ -211,10 +213,10 @@ Return only the JSON object."""
 Candidate: {candidate_name}
 
 JOB SPECIFICATION:
-{job_spec_text[:2500]}
+{job_spec_text[:STAGE1_SPEC_CHARS]}
 
 CANDIDATE CV:
-{cv_text[:2500]}"""
+{cv_text[:STAGE1_CV_CHARS]}"""
 
     raw = _call_model(MODEL_SONNET, system, prompt, max_tokens=3000)
     result = _parse_json_response(
@@ -241,7 +243,6 @@ CANDIDATE CV:
     gaps = result.get("gaps") or []
     recommendation = str(result.get("recommendation") or "")
 
-    # Keep both bot-native and website-legacy keys
     return {
         "score": float(result.get("score") or 0),
         "matched_skills": matched,
