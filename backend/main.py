@@ -217,38 +217,40 @@ async def apply(
         }
 
     try:
-        scoring = ai_engine.score_cv(cv_text, job_spec_text)
+        scoring = ai_engine.score_cv(cv_text, job_spec_text, candidate_name=full_name.strip())
     except Exception as exc:
         log.exception("CV scoring failed")
         raise HTTPException(status_code=500, detail=f"CV scoring failed: {exc}") from exc
 
-    score = int(round(float(scoring.get("score", 0))))
+    # Keep float precision like the Recruitment Bot (display may round later)
+    score = float(scoring.get("score", 0) or 0)
     recommendation = str(scoring.get("recommendation") or "")
-    analysis = str(scoring.get("analysis") or "")
-    matched = scoring.get("matched") or []
+    analysis = str(scoring.get("summary") or scoring.get("analysis") or "")
+    matched = scoring.get("matched_skills") or scoring.get("matched") or []
     gaps = scoring.get("gaps") or []
-
-    questions: list[str] = []
-    if score >= 60:
-        try:
-            questions = ai_engine.generate_questions(cv_text, job_spec_text, score)
-        except Exception:
-            log.exception("Question generation failed")
-            questions = []
+    # Same-call questions as the Recruitment Bot (already date-sanitized)
+    questions = list(
+        scoring.get("interview_questions") or scoring.get("questions") or []
+    )
 
     requires_questions = score >= 60 and bool(questions)
 
     analysis_payload = {
         "score": score,
         "analysis": analysis,
+        "summary": analysis,
         "matched": matched,
+        "matched_skills": matched,
         "gaps": gaps,
+        "partial_matches": scoring.get("partial_matches") or [],
         "recommendation": recommendation,
+        "interview_questions": questions,
         "gate1_reason": gate1.get("reason", ""),
         "consent_popia": True,
         "consent_timestamp": consent_timestamp or datetime.now().isoformat(),
         "source": "website",
         "website_complete": not requires_questions,
+        "scorer": "recruitment_bot_aligned_v1",
     }
 
     candidate_id = db.save_or_update_candidate(
@@ -261,7 +263,7 @@ async def apply(
     submission_id = db.save_submission(
         candidate_id=candidate_id,
         spec_id=spec_id,
-        stage1_score=float(score),
+        stage1_score=score,
         stage1_analysis=json.dumps(analysis_payload),
         stage1_questions=json.dumps(questions) if questions else None,
         gate1_passed=True,
